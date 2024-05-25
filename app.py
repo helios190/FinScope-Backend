@@ -9,9 +9,9 @@ from dotenv import load_dotenv
 
 import datetime
 import os
-from server.ocr_handle.database import get_db, update_user_data
-from server.ocr_handle.ocr import ocr_image_from_blob
-from server.ocr_handle.storage import upload_file_to_blob, get_blob_client
+from ocr_handle.database import get_db, update_user_data
+from ocr_handle.ocr import ocr_image_from_blob
+from ocr_handle.storage import upload_file_to_blob, get_blob_client
 
 
 load_dotenv()
