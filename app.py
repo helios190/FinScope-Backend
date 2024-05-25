@@ -86,42 +86,6 @@ def calculate():
     return jsonify(response.content)
 
 
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part in the request'}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected for uploading'}), 400
-    
-    try:
-        file_url, filename = upload_file_to_blob(file)
-        
-        # Simpan metadata file di MongoDB
-        document = {
-            "file_name": filename,
-            "file_url": file_url,
-            "upload_date": datetime.datetime.utcnow()
-        }
-        result = db.files.insert_one(document)
-
-        user_data_document = {
-            "file_name": filename,
-            "upload_date": datetime.datetime.utcnow()
-        }
-        user_data_result = db.User_Data.insert_one(user_data_document)
-        
-        return jsonify({
-            'message': 'File successfully uploaded',
-            'file_url': file_url,
-            'document_id': str(result.inserted_id),
-            'user_data_id': str(user_data_result.inserted_id)
-        }), 201
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/ocr_extract', methods=['POST'])
 def ocr_extract():
     try:
@@ -193,26 +157,6 @@ def upload():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/ocr_extract', methods=['POST'])
-def ocr_extract():
-    try:
-        last_file = db.User_Data.find_one(sort=[('_id', -1)])
-        
-        if not last_file or 'file_name' not in last_file:
-            return jsonify({'error': 'No file found in the database'}), 400
-        
-        file_name = last_file['file_name']
-        blob_client = get_blob_client(file_name)
-        
-        extracted_text = ocr_image_from_blob(blob_client)
-        update_user_data(last_file['_id'], extracted_text)
-        
-        return jsonify({
-            'message': 'OCR extraction successful',
-            'extracted_text': extracted_text
-        }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
