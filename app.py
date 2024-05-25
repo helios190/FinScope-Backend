@@ -6,6 +6,8 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
 from langchain.embeddings.openai import OpenAIEmbeddings
 from dotenv import load_dotenv
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document
 
 import datetime
 import os
@@ -98,28 +100,32 @@ def ocr_extract():
         blob_client = get_blob_client(file_name)
         
         extracted_text = ocr_image_from_blob(blob_client)
+        if "PermissionDenied" in extracted_text:
+            return jsonify({'error': 'Permission Denied to access the blob'}), 403
+        
         update_user_data(last_file['_id'], extracted_text)
         
-        # Di chunk dulu
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
-        # split documents into text and embeddings
-
+        # Konversi extracted_text ke daftar dokumen
+        document = Document(page_content=extracted_text)
+        
         text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, 
-        chunk_overlap=200,
-        length_function=len,
-        is_separator_regex=False
+            chunk_size=1000, 
+            chunk_overlap=200,
+            length_function=len,
+            is_separator_regex=False
         )
 
-        chunks = text_splitter.split_documents(extracted_text)
+        chunks = text_splitter.split_documents([document])
+        
+        chunks_content = [chunk.page_content for chunk in chunks]
        
         return jsonify({
             'message': 'OCR extraction successful',
-            'extracted_text': extracted_text
+            'extracted_text': extracted_text,
+            'chunks': chunks_content
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/upload', methods=['POST'])
 def upload():
