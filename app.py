@@ -27,65 +27,75 @@ db = get_db()
 @app.route('/calculates', methods=['POST'])
 def calculate():
     global calculation_results
-    stock_symbols = request.form.getlist('stock_symbols')
-    if not stock_symbols:
-        return jsonify({"error": "No stock symbols provided"}), 400
+    try:
+        # Ambil data JSON dari permintaan
+        data = request.get_json()
+        if data is None:
+            return jsonify({"error": "Request body must be JSON"}), 400
+        
+        stock_symbols = data.get('stock_symbols')
 
-    start_date = "2023-01-01"
-    end_date = "2024-01-01"
+        # Periksa apakah stock_symbols ada dalam JSON body
+        if not stock_symbols:
+            return jsonify({"error": "No stock symbols provided"}), 400
 
-    adj_close_prices = portofolio_calculation.get_adjusted_close_prices(stock_symbols, start_date, end_date)
-    if adj_close_prices.empty:
-        return jsonify({"error": "Failed to retrieve stock data"}), 500
+        start_date = "2023-01-01"
+        end_date = "2024-01-01"
 
-    adj_close_prices['^IRX'] = adj_close_prices['^IRX'] / 12 / 100
-    adj_close_prices.dropna(inplace=True)
+        adj_close_prices = portofolio_calculation.get_adjusted_close_prices(stock_symbols, start_date, end_date)
+        if adj_close_prices.empty:
+            return jsonify({"error": "Failed to retrieve stock data"}), 500
 
-    excess = adj_close_prices.subtract(adj_close_prices['^IRX'], axis=0)
-    excess.drop('^IRX', axis=1, inplace=True)
+        adj_close_prices['^IRX'] = adj_close_prices['^IRX'] / 12 / 100
+        adj_close_prices.dropna(inplace=True)
 
-    risk_free_rate = adj_close_prices['^IRX'].mean()
-    market_return = excess['S&P500'].mean()
+        excess = adj_close_prices.subtract(adj_close_prices['^IRX'], axis=0)
+        excess.drop('^IRX', axis=1, inplace=True)
 
-    alpha_beta_dict = portofolio_calculation.calculate_alpha_beta(excess)
+        risk_free_rate = adj_close_prices['^IRX'].mean()
+        market_return = excess['S&P500'].mean()
 
-    min_var_portfolios = portofolio_calculation.calculate_minimum_variance_frontier(adj_close_prices)
-    max_sharpe_weights, _ = portofolio_calculation.calculate_max_sharpe_ratio(adj_close_prices, risk_free_rate)
+        alpha_beta_dict = portofolio_calculation.calculate_alpha_beta(excess)
 
-    # Store the results in the global variable
-    calculation_results = {
-        "min_var_portfolios": min_var_portfolios,
-        "max_sharpe_weights": list(max_sharpe_weights),
-        'alpha_beta_dict': alpha_beta_dict
-    }
-    min_var_portfolios = calculation_results['min_var_portfolios']
-    max_sharpe_weights = calculation_results['max_sharpe_weights']
-    alpha_beta_dict = calculation_results['alpha_beta_dict']
-    
-    # Get embedding model
-    load_dotenv()
-    os.getenv('OPENAI_API_KEY')
+        min_var_portfolios = portofolio_calculation.calculate_minimum_variance_frontier(adj_close_prices)
+        max_sharpe_weights, _ = portofolio_calculation.calculate_max_sharpe_ratio(adj_close_prices, risk_free_rate)
 
-    prompt_content = f''' 
-    I have this result of calculation Minimum Variance Portofolios {min_var_portfolios}, max_sharpe_weights of {max_sharpe_weights}, and alpha and beta of {alpha_beta_dict}
-    1. In the Alpha and Beta, there's the Stock Name. Please describe the Security Market Line Result (NOT THE DEFINITION) based on the Value of Alpha and Beta. Give a Conclusion
-    2. In the Minimum Variance Portfolios, describe the highest to lowest risk to reward based on this. Give a Conclusion
-    3. In the Max Sharpe Weights, please describe the amount of percentage this person needs to take on the stocks that they put. Give a Conclusion
-    '''
+        calculation_results = {
+            "min_var_portfolios": min_var_portfolios,
+            "max_sharpe_weights": list(max_sharpe_weights),
+            'alpha_beta_dict': alpha_beta_dict
+        }
+        
+        min_var_portfolios = calculation_results['min_var_portfolios']
+        max_sharpe_weights = calculation_results['max_sharpe_weights']
+        alpha_beta_dict = calculation_results['alpha_beta_dict']
+        
+        load_dotenv()
+        os.getenv('OPENAI_API_KEY')
 
-    high_level_behavior = """
-    You are an AI for FinScope-AI. This is a section for Portfolio Management of the desired amount of stocks.
-    """
+        prompt_content = f''' 
+        I have this result of calculation Minimum Variance Portfolios {min_var_portfolios}, max_sharpe_weights of {max_sharpe_weights}, and alpha and beta of {alpha_beta_dict}
+        1. In the Alpha and Beta, there's the Stock Name. Please describe the Security Market Line Result (NOT THE DEFINITION) based on the Value of Alpha and Beta. Give a Conclusion
+        2. In the Minimum Variance Portfolios, describe the highest to lowest risk to reward based on this. Give a Conclusion
+        3. In the Max Sharpe Weights, please describe the amount of percentage this person needs to take on the stocks that they put. Give a Conclusion
+        '''
 
-    chatgpt = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+        high_level_behavior = """
+        You are an AI for FinScope-AI. This is a section for Portfolio Management of the desired amount of stocks.
+        """
 
-    response = chatgpt([
-        SystemMessage(content=high_level_behavior),
-        AIMessage(content="Hello! I am a Financial Helper from FinScope-AI. Let me help you through your Investment Opportunity."),
-        HumanMessage(content=prompt_content),
-    ])
+        chatgpt = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
 
-    return jsonify(response.content)
+        response = chatgpt([
+            SystemMessage(content=high_level_behavior),
+            AIMessage(content="Hello! I am a Financial Helper from FinScope-AI. Let me help you through your Investment Opportunity."),
+            HumanMessage(content=prompt_content),
+        ])
+
+        return jsonify(response.content)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/ocr_extract', methods=['POST'])
