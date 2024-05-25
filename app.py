@@ -8,7 +8,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
-
+from azure.storage.blob import BlobServiceClient
 import datetime
 import os
 from ocr_handle.database import get_db, update_user_data
@@ -174,5 +174,23 @@ def upload():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/check_connection', methods=['GET'])
+def check_connection():
+    try:
+        connection_string = os.getenv('BLOB_STRING')
+        if not connection_string:
+            return jsonify({'error': 'Connection string not found'}), 500
+
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        container_name = 'dokumen'
+        container_client = blob_service_client.get_container_client(container_name)
+        # List blobs in the container to check access
+        blob_list = [blob.name for blob in container_client.list_blobs()]
+        return jsonify({'message': 'Connection successful', 'blobs': blob_list}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=8000, debug=True)
