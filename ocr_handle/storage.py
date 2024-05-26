@@ -2,6 +2,8 @@ import os
 from azure.storage.blob import BlobServiceClient
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+import random
+import string
 
 load_dotenv()
 blob_storage_connection_string = os.getenv('BLOB_STRING')
@@ -10,7 +12,8 @@ blob_service_client = BlobServiceClient.from_connection_string(blob_storage_conn
 container_client = blob_service_client.get_container_client(blob_storage_container_name)
 
 def upload_file_to_blob(file):
-    filename = secure_filename(file.filename)
+    # filename = secure_filename(file.filename)
+    filename = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     blob_name = f"uploads/{filename}"
     blob_client = container_client.get_blob_client(blob_name)
     blob_client.upload_blob(file)
