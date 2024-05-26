@@ -78,6 +78,7 @@ def calculate():
         market_return = excess['S&P500'].mean()
 
         alpha_beta_dict = portofolio_calculation.calculate_alpha_beta(excess)
+        excess.to_csv('/Users/bintangrestubawono/Documents/mbm-senpro/FinScope-AI/server')
 
         min_var_portfolios = portofolio_calculation.calculate_minimum_variance_frontier(adj_close_prices)
         max_sharpe_weights, _ = portofolio_calculation.calculate_max_sharpe_ratio(adj_close_prices, risk_free_rate)
@@ -288,9 +289,12 @@ def upload_and_search():
         query_text = '''How is the Condition of the Profitability of this Company. You need to Asses it by this
         How much is the Gross Profit of this Company, and How much is the Total Sales. Please Calculate the Gross Profit Margin by Gross profit Divided by Sales
         Secondly. How much is the Operating Profit of this Company. Search the Operating Profit Margin by Dividing Operating Profit by Sales.
-        Thirdly. How much is the Net Income. Calculate the Net Profit Margin by Dividing Net Income by Total Sales. Lastly. Calculate the Return On Assets
+        Thirdly. How much is the Net Income. Net Income Calculation is Total Revenue - Total Expenses. 
+        Calculate the Net Profit Margin by Dividing Net Income by Total Sales. Lastly. Calculate the Return On Assets
         By dividing Net Income by Total Assets. Draw a Conclusion on the Company Profitablity Condition. Dont say if you dont find the number. But Please Draw
-        a Conclusion. Dont also say that you cannot draw a conclusion based on this number. Just Say what it is.'''
+        a Conclusion. Dont also say that you cannot draw a conclusion based on this number. Just Say what it is. Make it in form of Paragraph. IF YOU DONT FIND
+        ONE OF THE METRIC DONT SAY THAT YOU CANNOT FIND THE ANSWER. JUST SKIP THE PART AND DRAW CONCLUSION BASED ON THE AVAILABLE INSIGHTS. Draw a Conclusion and explain it in a subtle way so
+        that a non-finance person can understand.'''
         
         search_results = search_query(query_text)
         answer = get_rag_chain(search_results, query_text)
