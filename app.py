@@ -279,9 +279,8 @@ def upload_and_search():
         if not last_file or 'file_name' not in last_file:
             return jsonify({'error': 'No file found in the database'}), 400
         file_name = last_file['file_name']
-        # blob_client = get_blob_client(file_name)
-        # extracted_text = ocr_image_from_blob(blob_client)
-        extracted_text = last_file['ocr_result']
+        blob_client = get_blob_client(file_name)
+        extracted_text = ocr_image_from_blob(blob_client)
         update_user_data(last_file['_id'], extracted_text)
         
         # Chunk the extracted text
