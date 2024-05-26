@@ -17,6 +17,9 @@ import os
 from ocr_handle.database import get_db, update_user_data
 from ocr_handle.ocr import ocr_image_from_blob
 from ocr_handle.storage import upload_file_to_blob, get_blob_client
+#import library for hashid
+import random
+import string
 
 
 load_dotenv()
@@ -168,26 +171,18 @@ def upload():
     
     try:
         file_url, filename = upload_file_to_blob(file)
-        
-        # Simpan metadata file di MongoDB
-        document = {
-            "file_name": filename,
-            "file_url": file_url,
-            "upload_date": datetime.datetime.utcnow()
-        }
-        result = db.files.insert_one(document)
 
         user_data_document = {
             "file_name": filename,
-            "upload_date": datetime.datetime.utcnow()
+            "file_url": file_url,
+            "upload_date": datetime.datetime.now()
         }
         user_data_result = db.User_Data.insert_one(user_data_document)
         
         return jsonify({
             'message': 'File successfully uploaded',
             'file_url': file_url,
-            'document_id': str(result.inserted_id),
-            'user_data_id': str(user_data_result.inserted_id)
+            'file_name': filename,
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -215,7 +210,7 @@ def get_vector_store(text):
     
     document = Document(page_content=text)
     chunks = text_splitter.split_documents([document])
-    print(chunks)
+    # print(chunks)
     
     documents_to_upload = []
     for idx, chunk in enumerate(chunks):
@@ -258,8 +253,8 @@ def get_rag_chain(retriever,query_text):
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful expert financial research assistant. Your users are asking questions about information contained in an annual report."
-            "You will be shown the user's question, and the relevant information from the annual report. Answer the user's question using only this information."
+            "content": "You are a helpful expert financial research assistant. Your users are asking questions about information contained in an annual report. You can only answer about financial information contained in the annual report."
+            "If the information is not about financial just tell the user to upload their financial data. You will be shown the user's question, and the relevant information from the annual report. Answer the user's question using only this information."
         },
         {"role": "user", "content": f"Question: {query_text}. \n Information: {retriever}"}
     ]
@@ -274,30 +269,31 @@ def get_rag_chain(retriever,query_text):
 @app.route('/upload_and_search', methods=['GET'])
 def upload_and_search():
     try:
-        # Upload documents with chunking and vector embeddings
-        last_file = db.User_Data.find_one(sort=[('_id', -1)])
-        if not last_file or 'file_name' not in last_file:
-            return jsonify({'error': 'No file found in the database'}), 400
-        file_name = last_file['file_name']
-        blob_client = get_blob_client(file_name)
+        file_name = request.args.get('file_name')
+        if not file_name:
+            return jsonify({'error': 'file name is required'}), 400
+
+        # Cari dokumen berdasarkan file_name
+        file_data = db.User_Data.find_one({'file_name': file_name})
+        if not file_data:
+            return jsonify({'error': 'File not found'}), 404
+        
+        blob_client = get_blob_client(file_data['file_name'])
         extracted_text = ocr_image_from_blob(blob_client)
-        update_user_data(last_file['_id'], extracted_text)
+        update_user_data(file_data['_id'], extracted_text)
         
         # Chunk the extracted text
         get_vector_store(extracted_text)
+        
         query_text = '''How is the Condition of the Profitability of this Company. You need to Asses it by this
         How much is the Gross Profit of this Company, and How much is the Total Sales. Please Calculate the Gross Profit Margin by Gross profit Divided by Sales
-    Secondly. How much is the Operating Profit of this Company. Search the Operating Profit Margin by Dividing Operating Profit by Sales.
-    Thirdly. How much is the Net Income. Calculate the Net Profit Margin by Dividing Net Income by Total Sales. Lastly. Calculate the Return On Assets
-    By dividing Net Income by Total Assets. Draw a Conclusion on the Company Profitablity Condition. Dont say if you dont find the number. But Please Draw
-    a Conclusion. Dont also say that you cannot draw a conclusion based on this number. Just Say what it is.'''
+        Secondly. How much is the Operating Profit of this Company. Search the Operating Profit Margin by Dividing Operating Profit by Sales.
+        Thirdly. How much is the Net Income. Calculate the Net Profit Margin by Dividing Net Income by Total Sales. Lastly. Calculate the Return On Assets
+        By dividing Net Income by Total Assets. Draw a Conclusion on the Company Profitablity Condition. Dont say if you dont find the number. But Please Draw
+        a Conclusion. Dont also say that you cannot draw a conclusion based on this number. Just Say what it is.'''
+        
         search_results = search_query(query_text)
-        answer =  get_rag_chain(search_results,query_text)
-
-        if not query_text:
-            return jsonify({'error': 'No query text provided'}), 400
-       
-
+        answer = get_rag_chain(search_results, query_text)
 
         return jsonify({
             'message': 'OCR extraction, chunking, and search successful',
