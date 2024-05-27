@@ -113,6 +113,7 @@ def calculate():
             AIMessage(content="Hello! I am a Financial Helper from FinScope-AI. Let me help you through your Investment Opportunity."),
             HumanMessage(content=prompt_content),
         ])
+        print(response.content)
 
         return jsonify(response.content)
 
