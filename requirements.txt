@@ -77,4 +77,4 @@ yarl==1.9.4
 yfinance==0.2.40
 statsmodels==0.14.2
 langchain-text_splitters==0.2.0
-langchain-community==0.2.1
+langchain-community==0.0.16
